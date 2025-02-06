@@ -1,114 +1,93 @@
-// Get references to HTML elements
+// References to HTML elements
 const nameInput = document.getElementById("my-name-input");
 const messageInput = document.getElementById("my-message-input");
 const sendButton = document.getElementById("send-button");
 const chatBox = document.getElementById("chat");
 
-// Function to format messages
-function formatMessage(message, myNameInput) {
-  const time = new Date(message.timestamp);
-  const formattedTime = `${time.getHours()}:${time.getMinutes()}`;
+// Server URLs
+const SERVER_URL = "https://it3049c-chat.fly.dev";
+const MESSAGES_URL = `${SERVER_URL}/messages`;
 
-  if (myNameInput === message.sender) {
+// Interval timing constant
+const MILLISECONDS_IN_TEN_SECONDS = 10000;
+
+// Function to format a message into HTML
+function formatMessage(message) {
+    const formattedTime = new Date(message.timestamp).toLocaleTimeString();
+    const isMine = message.sender === nameInput.value.trim();
+    const messageClass = isMine ? "mine" : "yours";
+
     return `
-      <div class="mine messages">
-        <div class="message">
-          ${message.text}
+        <div class="${messageClass} messages">
+            <div class="message">${message.text}</div>
+            ${isMine ? "" : `<div class="sender-info">${message.sender} ${formattedTime}</div>`}
         </div>
-        <div class="sender-info">
-          ${formattedTime}
-        </div>
-      </div>
     `;
-  } else {
-    return `
-      <div class="yours messages">
-        <div class="message">
-          ${message.text}
-        </div>
-        <div class="sender-info">
-          ${message.sender} ${formattedTime}
-        </div>
-      </div>
-    `;
-  }
 }
 
-// Fetch messages from the server
-function fetchMessages() {
-  return [
-    {
-      id: 1,
-      text: "This is my message",
-      sender: "Uyen Duong",
-      timestamp: 1537410673072
-    },
-    {
-      id: 2,
-      text: "This is another message",
-      sender: "Uyen Duong",
-      timestamp: 1537410673072
-    },
-    {
-      id: 3,
-      text: "This is a message from someone else",
-      sender: "Tuan Nguyen",
-      timestamp: 1537410673072
-    }
-  ];
-}
-
-// Update messages in the chatbox
-function updateMessages() {
-  const messages = fetchMessages();
-  let formattedMessages = "";
-  messages.forEach(message => {
-    formattedMessages += formatMessage(message, nameInput.value);
-  });
-  chatBox.innerHTML = formattedMessages;
-}
-
-// Send a new message
-sendButton.addEventListener("click", function(event) {
-  event.preventDefault();
-  const sender = nameInput.value;
-  const message = myMessage.value;
-  sendMessages(sender, message);
-  myMessage.value = "";
-});
-
-// Getting messages with .then callbacks
-const serverURL = `https://it3049c-chat.fly.dev/messages`;
-
-function fetchMessages() {
-  return fetch(serverURL)
-    .then(response => response.json());
-}
-
-//Getting messages with async/ await
+// Function to fetch messages from the server
 async function fetchMessages() {
-  const response = await fetch(serverURL);
-  return response.json();
+    try {
+        const response = await fetch(MESSAGES_URL);
+        if (!response.ok) {
+            throw new Error("Failed to fetch messages.");
+        }
+        return await response.json();
+    } catch (error) {
+        console.error("Error fetching messages:", error);
+        return [];
+    }
 }
 
-// Sending messages
-function sendMessages(username, text) {
-  const newMessage = {
-    sender: username,
-    text: text,
-    timestamp: new Date()
-  };
-
-  fetch(serverURL, {
-    method: "POST",
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(newMessage)
-  });
+// Function to update messages in the chatbox
+async function updateMessagesInChatBox() {
+    const messages = await fetchMessages();
+    console.log("Fetched Messages:", messages); // Logging to inspect structure
+    chatBox.innerHTML = messages.map(formatMessage).join("");
 }
 
+// Function to send a message to the server
+async function sendMessage() {
+    const senderName = nameInput.value.trim();
+    const messageText = messageInput.value.trim();
 
-// Update messages on load and set interval for updates
-updateMessages();
-setInterval(updateMessages, 10000);
+    if (!senderName || !messageText) {
+        alert("Please enter both your name and a message.");
+        return;
+    }
+
+    const newMessage = {
+        sender: senderName,
+        text: messageText,
+        timestamp: new Date().toISOString() // Using ISO format
+    };
+
+    try {
+        const response = await fetch(MESSAGES_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(newMessage)
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to send message.");
+        }
+
+        // Wait for the message to appear on the server before updating UI
+        setTimeout(updateMessagesInChatBox, 1000);
+        messageInput.value = ""; // Clear input after sending
+    } catch (error) {
+        console.error("Error sending message:", error);
+    }
+}
+
+// Event listener for send button click
+sendButton.addEventListener("click", sendMessage);
+
+// Initial update of messages in chatbox
+updateMessagesInChatBox();
+
+// Set interval to fetch messages every 10 seconds
+setInterval(updateMessagesInChatBox, MILLISECONDS_IN_TEN_SECONDS);
